@@ -1,81 +1,153 @@
-import { useEffect, useMemo, useState } from "react";
-import programs from './data/events'
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import programsMetadata from "./data/events";
+
 import openlake from "./assets/openlake.png";
-/* ---------------------------------------------------
-   DATE HELPERS
---------------------------------------------------- */
 
-function formatDate(date) {
-  if (!date) return "Timeline varies";
+import "./index.css";
 
-  return new Date(date).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
+
+// ============================================================
+// DATE HELPERS
+// ============================================================
+
+function formatMilestoneDate(milestone) {
+  // Exact date
+  if (milestone.date) {
+    return new Date(milestone.date).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  // Approximate date such as "March 2026"
+  if (milestone.dateText) {
+    return `${milestone.dateText} · approximate`;
+  }
+
+  return "Timeline varies";
 }
+function isMilestonePast(milestone) {
+  // Exact date
+  if (milestone.date) {
+    return new Date(milestone.date).getTime() < Date.now();
+  }
 
+  // Approximate date such as "March 2026"
+  if (milestone.dateText) {
+    const approximateDate = new Date(
+      `1 ${milestone.dateText}`
+    );
+
+    if (!isNaN(approximateDate.getTime())) {
+      const now = new Date();
+
+      return (
+        approximateDate.getFullYear() < now.getFullYear() ||
+        (
+          approximateDate.getFullYear() === now.getFullYear() &&
+          approximateDate.getMonth() < now.getMonth()
+        )
+      );
+    }
+  }
+
+  return false;
+}
 function getNextMilestone(milestones) {
-  const now = Date.now();
+  const now = new Date();
 
   return (
-    milestones.find(
-      (milestone) =>
-        new Date(milestone.date).getTime() > now
-    ) || null
+    milestones.find((milestone) => {
+      // Exact date
+      if (milestone.date) {
+        return new Date(milestone.date) > now;
+      }
+
+      // Approximate date: "January 2027", "March 2027", etc.
+      if (milestone.dateText) {
+        const approximateDate = new Date(
+          `1 ${milestone.dateText}`
+        );
+
+        if (!isNaN(approximateDate.getTime())) {
+          return approximateDate > now;
+        }
+      }
+
+      return false;
+    }) || null
   );
 }
 
 function getTimeLeft(date) {
-  if (!date) return null;
+  if (!date) {
+    return null;
+  }
+
+  const target =
+    new Date(date).getTime();
 
   const difference =
-    new Date(date).getTime() - Date.now();
+    target - Date.now();
 
-  if (difference <= 0) return null;
+  if (difference <= 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.floor(
+    difference / 1000
+  );
+
+  const days = Math.floor(
+    totalSeconds / 86400
+  );
+
+  const hours = Math.floor(
+    (totalSeconds % 86400) / 3600
+  );
+
+  const minutes = Math.floor(
+    (totalSeconds % 3600) / 60
+  );
+
+  const seconds =
+    totalSeconds % 60;
 
   return {
-    days: Math.floor(
-      difference / (1000 * 60 * 60 * 24)
-    ),
-    hours: Math.floor(
-      (difference / (1000 * 60 * 60)) % 24
-    ),
-    minutes: Math.floor(
-      (difference / (1000 * 60)) % 60
-    ),
-    seconds: Math.floor(
-      (difference / 1000) % 60
-    ),
+    days,
+    hours,
+    minutes,
+    seconds,
   };
 }
 
-/* ---------------------------------------------------
-   COUNTDOWN
---------------------------------------------------- */
+// ============================================================
+// COUNTDOWN
+// ============================================================
 
 function Countdown({ date }) {
-  const [time, setTime] = useState(
-    () => getTimeLeft(date)
-  );
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (!date) return;
-
-    const timer = setInterval(() => {
-      setTime(getTimeLeft(date));
+    const interval = setInterval(() => {
+      setTick((value) => value + 1);
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [date]);
+    return () =>
+      clearInterval(interval);
+  }, []);
 
-  if (!date) {
-    return (
-      <div className="no-countdown">
-        TIMELINE VARIES
-      </div>
-    );
-  }
+  const time =
+    getTimeLeft(date);
 
   if (!time) {
     return (
@@ -88,37 +160,49 @@ function Countdown({ date }) {
   return (
     <div className="countdown">
       <div>
-        <strong>{time.days}</strong>
+        <strong>
+          {time.days}
+        </strong>
+
         <span>DAYS</span>
       </div>
 
       <div>
         <strong>
-          {String(time.hours).padStart(2, "0")}
+          {String(
+            time.hours
+          ).padStart(2, "0")}
         </strong>
+
         <span>HOURS</span>
       </div>
 
       <div>
         <strong>
-          {String(time.minutes).padStart(2, "0")}
+          {String(
+            time.minutes
+          ).padStart(2, "0")}
         </strong>
+
         <span>MIN</span>
       </div>
 
       <div>
         <strong>
-          {String(time.seconds).padStart(2, "0")}
+          {String(
+            time.seconds
+          ).padStart(2, "0")}
         </strong>
+
         <span>SEC</span>
       </div>
     </div>
   );
 }
 
-/* ---------------------------------------------------
-   CALENDAR
---------------------------------------------------- */
+// ============================================================
+// CALENDAR
+// ============================================================
 
 function Calendar({ date }) {
   if (!date) {
@@ -129,35 +213,62 @@ function Calendar({ date }) {
         </div>
 
         <div className="calendar-empty-text">
-          Official dates will appear here.
+          No upcoming exact date.
         </div>
       </div>
     );
   }
 
-  const eventDate = new Date(date);
+  const eventDate =
+    new Date(date);
 
-  const year = eventDate.getFullYear();
-  const month = eventDate.getMonth();
-  const eventDay = eventDate.getDate();
+  if (
+    Number.isNaN(
+      eventDate.getTime()
+    )
+  ) {
+    return null;
+  }
+
+  const year =
+    eventDate.getFullYear();
+
+  const month =
+    eventDate.getMonth();
+
+  const eventDay =
+    eventDate.getDate();
 
   const firstDay =
-    new Date(year, month, 1).getDay();
+    new Date(
+      year,
+      month,
+      1
+    ).getDay();
 
   const daysInMonth =
-    new Date(year, month + 1, 0).getDate();
+    new Date(
+      year,
+      month + 1,
+      0
+    ).getDate();
 
   const monthName =
-    eventDate.toLocaleDateString("en-IN", {
-      month: "long",
-      year: "numeric",
-    });
+    eventDate.toLocaleDateString(
+      "en-IN",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
 
   return (
     <div className="calendar">
-
       <div className="calendar-header">
-        <span>{monthName}</span>
+        <span>
+          {monthName}
+        </span>
+
         <span>📅</span>
       </div>
 
@@ -172,9 +283,10 @@ function Calendar({ date }) {
       </div>
 
       <div className="calendar-grid">
-
         {Array.from(
-          { length: firstDay },
+          {
+            length: firstDay,
+          },
           (_, index) => (
             <div
               key={`empty-${index}`}
@@ -184,9 +296,13 @@ function Calendar({ date }) {
         )}
 
         {Array.from(
-          { length: daysInMonth },
+          {
+            length:
+              daysInMonth,
+          },
           (_, index) => {
-            const day = index + 1;
+            const day =
+              index + 1;
 
             return (
               <div
@@ -202,32 +318,39 @@ function Calendar({ date }) {
             );
           }
         )}
-
       </div>
     </div>
   );
 }
 
-/* ---------------------------------------------------
-   PROGRAM CARD
---------------------------------------------------- */
+// ============================================================
+// PROGRAM CARD
+// ============================================================
 
-function ProgramCard({ program, index }) {
-  const nextMilestone = getNextMilestone(
-    program.milestones
-  );
+function ProgramCard({
+  program,
+  index,
+}) {
+  
+  const nextMilestone =
+    getNextMilestone(
+      program.milestones
+    );
 
-  const [expanded, setExpanded] = useState(false);
+  const [
+    expanded,
+    setExpanded,
+  ] = useState(false);
 
   return (
     <article className="program-card">
-
       <div className="program-number">
-        {String(index + 1).padStart(2, "0")}
+        {String(
+          index + 1
+        ).padStart(2, "0")}
       </div>
 
       <div className="program-main">
-
         <div className="program-meta">
           <span className="program-tag">
             {program.tag}
@@ -235,14 +358,19 @@ function ProgramCard({ program, index }) {
 
           {nextMilestone && (
             <span className="next-label">
-              NEXT · {formatDate(nextMilestone.date)}
+              NEXT ·{" "}
+              {formatMilestoneDate(nextMilestone)}
             </span>
           )}
         </div>
 
-        <h2>{program.name}</h2>
+        <h2>
+          {program.name}
+        </h2>
 
-        <p>{program.description}</p>
+        <p>
+          {program.description}
+        </p>
 
         {program.note && (
           <div className="program-note">
@@ -253,15 +381,21 @@ function ProgramCard({ program, index }) {
         {nextMilestone && (
           <>
             <div className="next-milestone">
-              <span>NEXT MILESTONE</span>
+              <span>
+                NEXT MILESTONE
+              </span>
 
               <strong>
-                {nextMilestone.title}
+                {
+                  nextMilestone.title
+                }
               </strong>
             </div>
 
             <Countdown
-              date={nextMilestone.date}
+              date={
+                nextMilestone.date
+              }
             />
           </>
         )}
@@ -269,7 +403,9 @@ function ProgramCard({ program, index }) {
         <button
           className="milestone-button"
           onClick={() =>
-            setExpanded(!expanded)
+            setExpanded(
+              !expanded
+            )
           }
         >
           {expanded
@@ -279,35 +415,36 @@ function ProgramCard({ program, index }) {
 
         {expanded && (
           <div className="milestones">
-
             {program.milestones.map(
-              (milestone, milestoneIndex) => {
-
-                const past =
-                  new Date(
-                    milestone.date
-                  ).getTime() < Date.now();
+              (
+                milestone,
+                milestoneIndex
+              ) => {
+                const past = isMilestonePast(milestone);
 
                 return (
                   <div
-                    className={`milestone ${
-                      past ? "past" : ""
-                    }`}
+                    className={`milestone ${past
+                      ? "past"
+                      : ""
+                      }`}
                     key={`${program.id}-${milestoneIndex}`}
                   >
                     <div className="milestone-dot">
-                      {past ? "✓" : "○"}
+                      {past
+                        ? "✓"
+                        : "○"}
                     </div>
 
                     <div>
                       <strong>
-                        {milestone.title}
+                        {
+                          milestone.title
+                        }
                       </strong>
 
                       <span>
-                        {formatDate(
-                          milestone.date
-                        )}
+                        {formatMilestoneDate(milestone)}
                       </span>
                     </div>
                   </div>
@@ -315,15 +452,15 @@ function ProgramCard({ program, index }) {
               }
             )}
 
-            {!program.milestones.length && (
-              <div className="no-milestones">
-                Official dates are not yet available.
-              </div>
-            )}
-
+            {!program.milestones
+              .length && (
+                <div className="no-milestones">
+                  Official dates are
+                  not yet available.
+                </div>
+              )}
           </div>
         )}
-
       </div>
 
       <Calendar
@@ -333,57 +470,245 @@ function ProgramCard({ program, index }) {
             : null
         }
       />
-
     </article>
   );
 }
 
-/* ---------------------------------------------------
-   APP
---------------------------------------------------- */
+// ============================================================
+// APP
+// ============================================================
 
 function App() {
-  const [filter, setFilter] =
-    useState("all");
+  const [
+    programs,
+    setPrograms,
+  ] = useState([]);
 
-  const visiblePrograms = useMemo(() => {
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-    if (filter === "all") {
+  const [
+    error,
+    setError,
+  ] = useState(null);
+
+  const [
+    filter,
+    setFilter,
+  ] = useState("all");
+
+  // ----------------------------------------------------------
+  // FETCH BACKEND DATA
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    async function loadPrograms() {
+      try {
+        setLoading(true);
+
+        const response =
+          await fetch(
+            `${API_URL}/api/programs`
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            `Backend returned ${response.status}`
+          );
+        }
+
+        const data =
+          await response.json();
+
+        if (!data.success) {
+          throw new Error(
+            "Backend request failed"
+          );
+        }
+
+        const backendPrograms =
+          data.results || [];
+
+        /*
+         * Preserve the order and metadata
+         * from events.js.
+         */
+
+        const merged =
+          programsMetadata.map(
+            (metadata) => {
+              const backend =
+                backendPrograms.find(
+                  (item) =>
+                    item.sourceId ===
+                    metadata.id
+                );
+
+              if (!backend) {
+                return {
+                  ...metadata,
+                  milestones: [],
+                };
+              }
+
+              return {
+                ...metadata,
+
+                description:
+                  backend.description ||
+                  metadata.description,
+
+                milestones:
+                  backend.milestones ||
+                  [],
+
+                extractionMethod:
+                  backend.extractionMethod,
+
+                error:
+                  backend.error,
+
+                lastSuccessfulUpdate:
+                  backend.lastSuccessfulUpdate,
+              };
+            }
+          );
+
+        setPrograms(merged);
+      } catch (err) {
+        console.error(err);
+
+        setError(
+          err.message ||
+          "Unable to load programs."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPrograms();
+  }, []);
+
+  // ----------------------------------------------------------
+  // FILTER
+  // ----------------------------------------------------------
+
+  const visiblePrograms =
+    useMemo(() => {
+      if (filter === "all") {
+        return programs;
+      }
+
+      if (
+        filter === "upcoming"
+      ) {
+        return programs.filter(
+          (program) =>
+            getNextMilestone(
+              program.milestones
+            )
+        );
+      }
+
+      if (
+        filter === "active"
+      ) {
+        return programs.filter(
+          (program) =>
+            program.milestones.some(
+              (milestone) =>
+                milestone.date &&
+                new Date(
+                  milestone.date
+                ).getTime() <
+                Date.now()
+            )
+        );
+      }
+
       return programs;
-    }
+    }, [filter, programs]);
 
-    if (filter === "upcoming") {
-      return programs.filter(
-        (program) =>
-          getNextMilestone(
-            program.milestones
-          )
-      );
-    }
+  // ----------------------------------------------------------
+  // LOADING
+  // ----------------------------------------------------------
 
-    if (filter === "active") {
-      return programs.filter(
-        (program) =>
-          program.milestones.some(
-            (milestone) =>
-              new Date(
-                milestone.date
-              ).getTime() < Date.now()
-          )
-      );
-    }
+  if (loading) {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <div className="logo">
+            <img
+              src={openlake}
+              alt="OpenLake"
+              className="logo-image"
+            />
 
-    return programs;
+            <span>
+              OpenLake
+            </span>
+          </div>
+        </nav>
 
-  }, [filter]);
+        <main className="timeline-section">
+          <div className="loading">
+            Loading program
+            timelines...
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------
+  // ERROR
+  // ----------------------------------------------------------
+
+  if (error) {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <div className="logo">
+            <img
+              src={openlake}
+              alt="OpenLake"
+              className="logo-image"
+            />
+
+            <span>
+              OpenLake
+            </span>
+          </div>
+        </nav>
+
+        <main className="timeline-section">
+          <div className="error-message">
+            Unable to load program
+            data.
+
+            <br />
+
+            <small>
+              {error}
+            </small>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------
 
   return (
     <div className="app">
-
       {/* NAVIGATION */}
 
       <nav className="navbar">
-
         <div className="logo">
           <img
             src={openlake}
@@ -403,39 +728,40 @@ function App() {
         >
           GitHub ↗
         </a>
-
       </nav>
 
       {/* HERO */}
 
       <header className="hero">
-
         <span className="hero-label">
-          OPENLAKE · OPEN SOURCE 2026
+          OPENLAKE · OPEN SOURCE
+          2026
         </span>
 
         <h1>
           Your contribution.
           <br />
-          <span>Mapped in time.</span>
+
+          <span>
+            Mapped in time.
+          </span>
         </h1>
 
         <p>
-          Track major open-source programs,
-          application windows and contribution
-          milestones — all in one place.
+          Track major
+          open-source programs,
+          application windows and
+          contribution milestones
+          — all in one place.
         </p>
 
         <div className="hero-line" />
-
       </header>
 
       {/* PROGRAMS */}
 
       <main className="timeline-section">
-
         <div className="section-header">
-
           <div>
             <span className="small-label">
               PROGRAM CALENDAR
@@ -447,7 +773,6 @@ function App() {
           </div>
 
           <div className="filters">
-
             <button
               className={
                 filter === "all"
@@ -463,12 +788,15 @@ function App() {
 
             <button
               className={
-                filter === "upcoming"
+                filter ===
+                  "upcoming"
                   ? "active"
                   : ""
               }
               onClick={() =>
-                setFilter("upcoming")
+                setFilter(
+                  "upcoming"
+                )
               }
             >
               Upcoming
@@ -486,15 +814,15 @@ function App() {
             >
               Active
             </button>
-
           </div>
-
         </div>
 
         <div className="events">
-
           {visiblePrograms.map(
-            (program, index) => (
+            (
+              program,
+              index
+            ) => (
               <ProgramCard
                 key={program.id}
                 program={program}
@@ -502,31 +830,27 @@ function App() {
               />
             )
           )}
-
         </div>
-
       </main>
 
       {/* FOOTER */}
 
       <footer>
-
         <div>
           <strong>
             OpenLake
           </strong>
 
           <span>
-            Open Source Community · IIT Bhilai
+            Open Source Community
+            · IIT Bhilai
           </span>
         </div>
 
         <span>
           Built for contributors.
         </span>
-
       </footer>
-
     </div>
   );
 }

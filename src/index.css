@@ -1019,3 +1019,39 @@ footer span {
 
   border-radius: 0;
 }
+/* =========================================================
+   API STATES
+========================================================= */
+
+.loading-state,
+.error-state {
+  min-height: 300px;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: flex-start;
+  justify-content: center;
+
+  gap: 10px;
+
+  color: var(--text-secondary);
+
+  font-family: "DM Mono", monospace;
+
+  font-size: 12px;
+}
+
+.error-state strong {
+  color: #ffffff;
+
+  font-family: "Inter", sans-serif;
+
+  font-size: 18px;
+}
+
+.error-state span {
+  color: var(--text-muted);
+
+  line-height: 1.6;
+}
